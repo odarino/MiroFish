@@ -221,6 +221,7 @@ def create_simulation():
             graph_id=graph_id,
             enable_twitter=data.get('enable_twitter', True),
             enable_reddit=data.get('enable_reddit', True),
+            enable_facebook=data.get('enable_facebook', False),
         )
         
         return jsonify({
@@ -263,13 +264,13 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         return False, {"reason": "模拟目录不存在"}
     
     # 必要文件列表（不包括脚本，脚本位于 backend/scripts/）
+    # 平台 profile 文件按启用平台而定，故此处只强制要求通用文件，
+    # 再单独校验"至少存在一个平台的 profile 文件"。
     required_files = [
         "state.json",
         "simulation_config.json",
-        "reddit_profiles.json",
-        "twitter_profiles.csv"
     ]
-    
+
     # 检查文件是否存在
     existing_files = []
     missing_files = []
@@ -279,12 +280,22 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
             existing_files.append(f)
         else:
             missing_files.append(f)
-    
+
     if missing_files:
         return False, {
             "reason": "缺少必要文件",
             "missing_files": missing_files,
             "existing_files": existing_files
+        }
+
+    # 至少需要一个平台的 profile 文件（由平台注册表决定文件名）
+    from ..platform_registry import all_platforms
+    platform_profiles = [p.profile_filename for p in all_platforms()]
+    if not any(os.path.exists(os.path.join(simulation_dir, pf))
+               for pf in platform_profiles):
+        return False, {
+            "reason": "缺少平台 profile 文件（至少需要一个）",
+            "expected_any_of": platform_profiles,
         }
     
     # 检查state.json中的状态
@@ -310,12 +321,20 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
         # - failed: 运行失败（但准备是完成的）
         prepared_statuses = ["ready", "preparing", "running", "completed", "stopped", "failed"]
         if status in prepared_statuses and config_generated:
-            # 获取文件统计信息
-            profiles_file = os.path.join(simulation_dir, "reddit_profiles.json")
+            # 获取文件统计信息（选用任一已存在的 JSON profile 文件计数）
+            from ..platform_registry import all_platforms
+            profiles_file = None
+            for p in all_platforms():
+                if p.profile_format != "json":
+                    continue
+                candidate = os.path.join(simulation_dir, p.profile_filename)
+                if os.path.exists(candidate):
+                    profiles_file = candidate
+                    break
             config_file = os.path.join(simulation_dir, "simulation_config.json")
-            
+
             profiles_count = 0
-            if os.path.exists(profiles_file):
+            if profiles_file and os.path.exists(profiles_file):
                 with open(profiles_file, 'r', encoding='utf-8') as f:
                     profiles_data = json.load(f)
                     profiles_count = len(profiles_data) if isinstance(profiles_data, list) else 0
@@ -1069,11 +1088,15 @@ def get_simulation_profiles_realtime(simulation_id: str):
                 "error": t('api.simulationNotFound', id=simulation_id)
             }), 404
         
-        # 确定文件路径
-        if platform == "reddit":
-            profiles_file = os.path.join(sim_dir, "reddit_profiles.json")
+        # 确定文件路径（由平台注册表决定文件名与格式）
+        from ..platform_registry import PLATFORMS
+        spec = PLATFORMS.get(platform)
+        if spec:
+            profiles_file = os.path.join(sim_dir, spec.profile_filename)
+            profile_fmt = spec.profile_format
         else:
             profiles_file = os.path.join(sim_dir, "twitter_profiles.csv")
+            profile_fmt = "csv"
         
         # 检查文件是否存在
         file_exists = os.path.exists(profiles_file)
@@ -1086,7 +1109,7 @@ def get_simulation_profiles_realtime(simulation_id: str):
             file_modified_at = datetime.fromtimestamp(file_stat.st_mtime).isoformat()
             
             try:
-                if platform == "reddit":
+                if profile_fmt == "json":
                     with open(profiles_file, 'r', encoding='utf-8') as f:
                         profiles = json.load(f)
                 else:
@@ -1519,7 +1542,7 @@ def start_simulation():
                     "error": t('api.maxRoundsInvalid')
                 }), 400
 
-        if platform not in ['twitter', 'reddit', 'parallel']:
+        if platform not in ['twitter', 'reddit', 'facebook', 'parallel']:
             return jsonify({
                 "success": False,
                 "error": t('api.invalidPlatform', platform=platform)

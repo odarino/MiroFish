@@ -50,6 +50,7 @@ class SimulationState:
     # 平台启用状态
     enable_twitter: bool = True
     enable_reddit: bool = True
+    enable_facebook: bool = False
     
     # 状态
     status: SimulationStatus = SimulationStatus.CREATED
@@ -83,6 +84,7 @@ class SimulationState:
             "graph_id": self.graph_id,
             "enable_twitter": self.enable_twitter,
             "enable_reddit": self.enable_reddit,
+            "enable_facebook": self.enable_facebook,
             "status": self.status.value,
             "entities_count": self.entities_count,
             "profiles_count": self.profiles_count,
@@ -174,6 +176,7 @@ class SimulationManager:
             graph_id=data.get("graph_id", ""),
             enable_twitter=data.get("enable_twitter", True),
             enable_reddit=data.get("enable_reddit", True),
+            enable_facebook=data.get("enable_facebook", False),
             status=SimulationStatus(data.get("status", "created")),
             entities_count=data.get("entities_count", 0),
             profiles_count=data.get("profiles_count", 0),
@@ -197,6 +200,7 @@ class SimulationManager:
         graph_id: str,
         enable_twitter: bool = True,
         enable_reddit: bool = True,
+        enable_facebook: bool = False,
     ) -> SimulationState:
         """
         创建新的模拟
@@ -219,6 +223,7 @@ class SimulationManager:
             graph_id=graph_id,
             enable_twitter=enable_twitter,
             enable_reddit=enable_reddit,
+            enable_facebook=enable_facebook,
             status=SimulationStatus.CREATED,
         )
         
@@ -335,6 +340,9 @@ class SimulationManager:
             elif state.enable_twitter:
                 realtime_output_path = os.path.join(sim_dir, "twitter_profiles.csv")
                 realtime_platform = "twitter"
+            elif state.enable_facebook:
+                realtime_output_path = os.path.join(sim_dir, "facebook_profiles.json")
+                realtime_platform = "facebook"
             
             profiles = generator.generate_profiles_from_entities(
                 entities=filtered.entities,
@@ -372,6 +380,14 @@ class SimulationManager:
                     file_path=os.path.join(sim_dir, "twitter_profiles.csv"),
                     platform="twitter"
                 )
+
+            if state.enable_facebook:
+                # Facebook 复用 Reddit 风格 JSON（generate_facebook_agent_graph 读取）
+                generator.save_profiles(
+                    profiles=profiles,
+                    file_path=os.path.join(sim_dir, "facebook_profiles.json"),
+                    platform="facebook"
+                )
             
             if progress_callback:
                 progress_callback(
@@ -408,7 +424,8 @@ class SimulationManager:
                 document_text=document_text,
                 entities=filtered.entities,
                 enable_twitter=state.enable_twitter,
-                enable_reddit=state.enable_reddit
+                enable_reddit=state.enable_reddit,
+                enable_facebook=state.enable_facebook
             )
             
             if progress_callback:
