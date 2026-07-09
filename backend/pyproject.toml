@@ -47,6 +47,10 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+# 允许直接引用（camel-oasis 使用 git+https 依赖 OASIS fork）
+allow-direct-references = true
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
