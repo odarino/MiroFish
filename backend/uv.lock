@@ -168,7 +168,7 @@ wheels = [
 [[package]]
 name = "camel-oasis"
 version = "0.2.5"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/odarino/oasis.git?rev=feat%2Ffacebook#e97a1d83761605a24a7dc91fa4d4e9defffa7e23" }
 dependencies = [
     { name = "cairocffi" },
     { name = "camel-ai" },
@@ -185,10 +185,6 @@ dependencies = [
     { name = "sentence-transformers" },
     { name = "slack-sdk" },
     { name = "unstructured" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/6f/b36240380c65397f3e18829fce8ed0a1d19893b32d3596aa0902c7b3ad81/camel_oasis-0.2.5.tar.gz", hash = "sha256:f667dec86f9f7823d50f76b07733a34afc1427b923f1a673519206bb41a57f8c", size = 56966, upload-time = "2025-12-04T11:58:19.43Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/d0/6d62173602433937d0228b7809e2b244e09c11cfb1be9c6754ae3b20d887/camel_oasis-0.2.5-py3-none-any.whl", hash = "sha256:9ebd6ba8e331495ee56b25cc63982188b94125dde499e5e9c00398a1d47e606d", size = 75954, upload-time = "2025-12-04T11:58:18.363Z" },
 ]
 
 [[package]]
@@ -1017,7 +1013,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "camel-ai", specifier = "==0.2.78" },
-    { name = "camel-oasis", specifier = "==0.2.5" },
+    { name = "camel-oasis", git = "https://github.com/odarino/oasis.git?rev=feat%2Ffacebook" },
     { name = "chardet", specifier = ">=5.0.0" },
     { name = "charset-normalizer", specifier = ">=3.0.0" },
     { name = "flask", specifier = ">=3.0.0" },

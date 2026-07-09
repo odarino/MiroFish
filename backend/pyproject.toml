@@ -20,7 +20,9 @@ dependencies = [
     "zep-cloud==3.13.0",
     
     # OASIS 社交媒体模拟
-    "camel-oasis==0.2.5",
+    # 指向 odarino 的 OASIS fork（feat/facebook 分支，基于 v0.2.5）
+    # 更新 fork 后需重新运行 `uv lock` 以固定新的 commit
+    "camel-oasis @ git+https://github.com/odarino/oasis.git@feat/facebook",
     "camel-ai==0.2.78",
     
     # 文件处理
