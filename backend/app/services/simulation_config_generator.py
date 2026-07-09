@@ -164,6 +164,7 @@ class SimulationParameters:
     # 平台配置
     twitter_config: Optional[PlatformConfig] = None
     reddit_config: Optional[PlatformConfig] = None
+    facebook_config: Optional[PlatformConfig] = None
     
     # LLM配置
     llm_model: str = ""
@@ -186,6 +187,7 @@ class SimulationParameters:
             "event_config": asdict(self.event_config),
             "twitter_config": asdict(self.twitter_config) if self.twitter_config else None,
             "reddit_config": asdict(self.reddit_config) if self.reddit_config else None,
+            "facebook_config": asdict(self.facebook_config) if self.facebook_config else None,
             "llm_model": self.llm_model,
             "llm_base_url": self.llm_base_url,
             "generated_at": self.generated_at,
@@ -250,6 +252,7 @@ class SimulationConfigGenerator:
         entities: List[EntityNode],
         enable_twitter: bool = True,
         enable_reddit: bool = True,
+        enable_facebook: bool = False,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
     ) -> SimulationParameters:
         """
@@ -337,7 +340,8 @@ class SimulationConfigGenerator:
         report_progress(total_steps, t('progress.generatingPlatformConfig'))
         twitter_config = None
         reddit_config = None
-        
+        facebook_config = None
+
         if enable_twitter:
             twitter_config = PlatformConfig(
                 platform="twitter",
@@ -357,7 +361,18 @@ class SimulationConfigGenerator:
                 viral_threshold=15,
                 echo_chamber_strength=0.6
             )
-        
+
+        if enable_facebook:
+            # Facebook: 好友网络驱动，回声室效应更强
+            facebook_config = PlatformConfig(
+                platform="facebook",
+                recency_weight=0.35,
+                popularity_weight=0.35,
+                relevance_weight=0.3,
+                viral_threshold=12,
+                echo_chamber_strength=0.7
+            )
+
         # 构建最终参数
         params = SimulationParameters(
             simulation_id=simulation_id,
@@ -369,6 +384,7 @@ class SimulationConfigGenerator:
             event_config=event_config,
             twitter_config=twitter_config,
             reddit_config=reddit_config,
+            facebook_config=facebook_config,
             llm_model=self.model_name,
             llm_base_url=self.base_url,
             generation_reasoning=" | ".join(reasoning_parts)
