@@ -49,14 +49,12 @@ class Config:
     OASIS_SIMULATION_DATA_DIR = os.path.join(os.path.dirname(__file__), '../uploads/simulations')
     
     # OASIS平台可用动作配置
-    OASIS_TWITTER_ACTIONS = [
-        'CREATE_POST', 'LIKE_POST', 'REPOST', 'FOLLOW', 'DO_NOTHING', 'QUOTE_POST'
-    ]
-    OASIS_REDDIT_ACTIONS = [
-        'LIKE_POST', 'DISLIKE_POST', 'CREATE_POST', 'CREATE_COMMENT',
-        'LIKE_COMMENT', 'DISLIKE_COMMENT', 'SEARCH_POSTS', 'SEARCH_USER',
-        'TREND', 'REFRESH', 'DO_NOTHING', 'FOLLOW', 'MUTE'
-    ]
+    # 单一事实来源见 app/platform_registry.py，此处保留常量以兼容旧代码
+    from .platform_registry import (
+        TWITTER_ACTIONS as OASIS_TWITTER_ACTIONS,
+        REDDIT_ACTIONS as OASIS_REDDIT_ACTIONS,
+        FACEBOOK_ACTIONS as OASIS_FACEBOOK_ACTIONS,
+    )
     
     # Report Agent配置
     REPORT_AGENT_MAX_TOOL_CALLS = int(os.environ.get('REPORT_AGENT_MAX_TOOL_CALLS', '5'))

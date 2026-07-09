@@ -113,9 +113,18 @@ class OasisAgentProfile:
             profile["profession"] = self.profession
         if self.interested_topics:
             profile["interested_topics"] = self.interested_topics
-        
+
         return profile
-    
+
+    def to_facebook_format(self) -> Dict[str, Any]:
+        """转换为Facebook平台格式。
+
+        Facebook 复用 Reddit 风格的 JSON profile：
+        generate_facebook_agent_graph 读取 username/bio/persona，以及可选的
+        mbti/gender/age/country。因此直接复用 to_reddit_format()。
+        """
+        return self.to_reddit_format()
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为完整字典格式"""
         return {
@@ -1053,16 +1062,23 @@ class OasisProfileGenerator:
         """
         保存Profile到文件（根据平台选择正确格式）
         
-        OASIS平台格式要求：
-        - Twitter: CSV格式
-        - Reddit: JSON格式
-        
+        格式由平台注册表决定 (app/platform_registry.py)：
+        - profile_format == "csv"  -> Twitter CSV
+        - profile_format == "json" -> Reddit/Facebook JSON
+
         Args:
             profiles: Profile列表
             file_path: 文件路径
-            platform: 平台类型 ("reddit" 或 "twitter")
+            platform: 平台类型 ("twitter" | "reddit" | "facebook")
         """
-        if platform == "twitter":
+        try:
+            from ..platform_registry import get_platform
+            fmt = get_platform(platform).profile_format
+        except KeyError:
+            # 未知平台回退到 JSON（与历史 else 分支一致）
+            fmt = "csv" if platform == "twitter" else "json"
+
+        if fmt == "csv":
             self._save_twitter_csv(profiles, file_path)
         else:
             self._save_reddit_json(profiles, file_path)
