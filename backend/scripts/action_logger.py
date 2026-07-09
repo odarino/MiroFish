@@ -132,6 +132,7 @@ class SimulationLogManager:
         self.simulation_dir = simulation_dir
         self.twitter_logger: Optional[PlatformActionLogger] = None
         self.reddit_logger: Optional[PlatformActionLogger] = None
+        self.facebook_logger: Optional[PlatformActionLogger] = None
         self._main_logger: Optional[logging.Logger] = None
         
         # 设置主日志
@@ -177,6 +178,12 @@ class SimulationLogManager:
         if self.reddit_logger is None:
             self.reddit_logger = PlatformActionLogger("reddit", self.simulation_dir)
         return self.reddit_logger
+
+    def get_facebook_logger(self) -> PlatformActionLogger:
+        """获取 Facebook 平台日志记录器"""
+        if self.facebook_logger is None:
+            self.facebook_logger = PlatformActionLogger("facebook", self.simulation_dir)
+        return self.facebook_logger
     
     def log(self, message: str, level: str = "info"):
         """记录主日志"""

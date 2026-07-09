@@ -1290,62 +1290,74 @@ async def run_twitter_simulation(
     return result
 
 
-async def run_reddit_simulation(
-    config: Dict[str, Any], 
+async def run_platform_simulation(
+    platform_name: str,
+    config: Dict[str, Any],
     simulation_dir: str,
     action_logger: Optional[PlatformActionLogger] = None,
     main_logger: Optional[SimulationLogManager] = None,
     max_rounds: Optional[int] = None
 ) -> PlatformSimulation:
-    """运行Reddit模拟
-    
+    """通用单平台模拟运行器，由 app.platform_registry 驱动。
+
+    适用于 JSON-profile 平台（reddit / facebook）。twitter 仍使用独立的
+    run_twitter_simulation（CSV profile + 专用初始帖处理）。
+
     Args:
+        platform_name: 平台标识（"reddit" | "facebook"）
         config: 模拟配置
         simulation_dir: 模拟目录
         action_logger: 动作日志记录器
         main_logger: 主日志管理器
         max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
-        
+
     Returns:
         PlatformSimulation: 包含env和agent_graph的结果对象
     """
+    from app.platform_registry import get_platform
+    spec = get_platform(platform_name)
+
     result = PlatformSimulation()
-    
+
     def log_info(msg):
         if main_logger:
-            main_logger.info(f"[Reddit] {msg}")
-        print(f"[Reddit] {msg}")
-    
+            main_logger.info(f"[{spec.label}] {msg}")
+        print(f"[{spec.label}] {msg}")
+
     log_info("初始化...")
-    
-    # Reddit 使用加速 LLM 配置（如果有的话，否则回退到通用配置）
-    model = create_model(config, use_boost=True)
-    
-    profile_path = os.path.join(simulation_dir, "reddit_profiles.json")
+
+    # use_boost 由注册表决定（并行时不同平台可错峰使用不同 API 服务商）
+    model = create_model(config, use_boost=spec.use_boost)
+
+    profile_path = os.path.join(simulation_dir, spec.profile_filename)
     if not os.path.exists(profile_path):
         log_info(f"错误: Profile文件不存在: {profile_path}")
         return result
-    
-    result.agent_graph = await generate_reddit_agent_graph(
+
+    generator = getattr(oasis, spec.graph_generator)
+    available_actions = [getattr(ActionType, a) for a in spec.actions]
+    result.agent_graph = await generator(
         profile_path=profile_path,
         model=model,
-        available_actions=REDDIT_ACTIONS,
+        available_actions=available_actions,
     )
-    
+
     # 从配置文件获取 Agent 真实名称映射（使用 entity_name 而非默认的 Agent_X）
     agent_names = get_agent_names_from_config(config)
     # 如果配置中没有某个 agent，则使用 OASIS 的默认名称
     for agent_id, agent in result.agent_graph.get_agents():
         if agent_id not in agent_names:
             agent_names[agent_id] = getattr(agent, 'name', f'Agent_{agent_id}')
-    
-    db_path = os.path.join(simulation_dir, "reddit_simulation.db")
+
+    db_path = os.path.join(simulation_dir, spec.db_filename)
     if os.path.exists(db_path):
         os.remove(db_path)
-    
+
+    platform_type = getattr(oasis.DefaultPlatformType,
+                            spec.oasis_platform_type.upper())
     result.env = oasis.make(
         agent_graph=result.agent_graph,
-        platform=oasis.DefaultPlatformType.REDDIT,
+        platform=platform_type,
         database_path=db_path,
         semaphore=30,  # 限制最大并发 LLM 请求数，防止 API 过载
     )
@@ -1485,8 +1497,34 @@ async def run_reddit_simulation(
     result.total_actions = total_actions
     elapsed = (datetime.now() - start_time).total_seconds()
     log_info(f"模拟循环完成! 耗时: {elapsed:.1f}秒, 总动作: {total_actions}")
-    
+
     return result
+
+
+async def run_reddit_simulation(
+    config: Dict[str, Any],
+    simulation_dir: str,
+    action_logger: Optional[PlatformActionLogger] = None,
+    main_logger: Optional[SimulationLogManager] = None,
+    max_rounds: Optional[int] = None
+) -> PlatformSimulation:
+    """运行Reddit模拟（委托给 run_platform_simulation）。"""
+    return await run_platform_simulation(
+        "reddit", config, simulation_dir, action_logger, main_logger,
+        max_rounds)
+
+
+async def run_facebook_simulation(
+    config: Dict[str, Any],
+    simulation_dir: str,
+    action_logger: Optional[PlatformActionLogger] = None,
+    main_logger: Optional[SimulationLogManager] = None,
+    max_rounds: Optional[int] = None
+) -> PlatformSimulation:
+    """运行Facebook模拟（委托给 run_platform_simulation，需要 OASIS fork）。"""
+    return await run_platform_simulation(
+        "facebook", config, simulation_dir, action_logger, main_logger,
+        max_rounds)
 
 
 async def main():
@@ -1506,6 +1544,11 @@ async def main():
         '--reddit-only',
         action='store_true',
         help='只运行Reddit模拟'
+    )
+    parser.add_argument(
+        '--facebook-only',
+        action='store_true',
+        help='只运行Facebook模拟（需要 OASIS fork 支持）'
     )
     parser.add_argument(
         '--max-rounds',
@@ -1572,14 +1615,17 @@ async def main():
     
     start_time = datetime.now()
     
-    # 存储两个平台的模拟结果
+    # 存储各平台的模拟结果
     twitter_result: Optional[PlatformSimulation] = None
     reddit_result: Optional[PlatformSimulation] = None
-    
+    facebook_result: Optional[PlatformSimulation] = None
+
     if args.twitter_only:
         twitter_result = await run_twitter_simulation(config, simulation_dir, twitter_logger, log_manager, args.max_rounds)
     elif args.reddit_only:
         reddit_result = await run_reddit_simulation(config, simulation_dir, reddit_logger, log_manager, args.max_rounds)
+    elif args.facebook_only:
+        facebook_result = await run_facebook_simulation(config, simulation_dir, log_manager.get_facebook_logger(), log_manager, args.max_rounds)
     else:
         # 并行运行（每个平台使用独立的日志记录器）
         results = await asyncio.gather(
@@ -1640,7 +1686,11 @@ async def main():
     if reddit_result and reddit_result.env:
         await reddit_result.env.close()
         log_manager.info("[Reddit] 环境已关闭")
-    
+
+    if facebook_result and facebook_result.env:
+        await facebook_result.env.close()
+        log_manager.info("[Facebook] 环境已关闭")
+
     log_manager.info("=" * 60)
     log_manager.info(f"全部完成!")
     log_manager.info(f"日志文件:")
